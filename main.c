@@ -10,6 +10,8 @@ char charmemval2[] = "P2.1 Value: ";
 char charmemval3[] = "SpO2 Value: ";
 char charreturn[] = "\r\n";
 char mv_char[5];
+double SpO2 = 0;
+double R=0;
 void ser_output(char *str);
 void itoa(int n, char s[]);
 void reverse(char s[]);
@@ -26,7 +28,6 @@ void reverse(char s[]);
 
 int T = 20;    // slot milliseconds to read a value from the sensor
 
-int SpO2;
 int avBPM;
 
 int p25_edge_flag = 0;
@@ -86,9 +87,9 @@ int main(void)
 
       TA1CTL = TASSEL_1 + MC_1; //ACLK, upmode
 
-      TA1CCR0 = 32000;
-      TA1CCR1 = 16000;
-      TA1CCR2 = 16000;
+      TA1CCR0 = 1000;
+      TA1CCR1 = 500;
+      TA1CCR2 = 500;
 
       TA1CCTL2 = OUTMOD_3; //PWM Set/Reset
       TA1CCTL1 = OUTMOD_7; //PWM Reset/Set for "inverse" phase between Red and IR LEDs
@@ -119,8 +120,6 @@ int main(void)
         float IRmin=700;
         float REDmax=-1;
         float REDmin=700;
-        float SpO2 = 0;
-        double R=0;
 //
         float measuresR[10];
         int measuresPeriods[10];
@@ -153,10 +152,10 @@ int main(void)
           ADC10CTL0 |= ENC + ADC10SC;             // Sampling and conversion start
           temp = ADC10MEM;
           reader += temp;
-          itoa(temp, mv_char); //UART the lastRED (average red) value
-          ser_output(charmemval);
-          ser_output(mv_char);
-          ser_output(charreturn);
+//          itoa(temp, mv_char); //UART the lastRED (average red) value
+//          ser_output(charmemval);
+//          ser_output(mv_char);
+//          ser_output(charreturn);
           n2++; //one more sample collected
 
           //reader /= n;  // we got an average
@@ -170,7 +169,7 @@ int main(void)
           lastIR = sumIR / samp_siz;
           */
 
-          if (n2 >= 5){
+          if (n2 >= 10){
                 reader /= n2; //average over last 5
                 readsIR[ir_ptr] = reader;
                 reading_flag = 1;
@@ -178,10 +177,10 @@ int main(void)
                 P2IFG &=  ~(BIT3); // clear any pending interrupts
                 p25_edge_flag = 0;
                 n2 = 0;
-                itoa(reader, mv_char); //UART the lastIR (average IR) value
-                ser_output(charmemval);
-                ser_output(mv_char);
-                ser_output(charreturn);
+//                itoa(reader, mv_char); //UART the lastIR (average IR) value
+//                ser_output(charmemval);
+//                ser_output(mv_char);
+//                ser_output(charreturn);
                 reader = 0;
                 ir_ptr++;
                 ir_ptr %= samp_siz;
@@ -195,23 +194,23 @@ int main(void)
           ADC10CTL0 |= ENC + ADC10SC;             // Sampling and conversion start
           temp = ADC10MEM;
           reader += temp;
-          itoa(temp, mv_char); //UART the lastRED (average red) value
-          ser_output(charmemval2);
-          ser_output(mv_char);
-          ser_output(charreturn);
+//          itoa(temp, mv_char); //UART the lastRED (average red) value
+//          ser_output(charmemval2);
+//          ser_output(mv_char);
+//          ser_output(charreturn);
           n++; //one more sample collected
-      if (n >= 5){
+      if (n >= 10){
           reader /= n; //average over last 20
           readsRED[red_ptr] = reader;
-          P2IES &= ~(BIT3); // low to high transition
-          P2IFG &=  ~(BIT3); // clear any pending interrupts
-          //P2IES = (BIT3); // low to high transition
-          //P2IFG ^=  (BIT3); // clear any pending interrupts
+          //P2IES &= ~(BIT3); // low to high transition
+          //P2IFG &=  ~(BIT3); // clear any pending interrupts
+          P2IES = (BIT3); // low to high transition
+          P2IFG ^=  (BIT3); // clear any pending interrupts
           n = 0;
-          itoa(reader, mv_char); //UART the lastRED (average red) value
-          ser_output(charmemval2);
-          ser_output(mv_char);
-          ser_output(charreturn);
+//          itoa(reader, mv_char); //UART the lastRED (average red) value
+//          ser_output(charmemval2);
+//          ser_output(mv_char);
+//          ser_output(charreturn);
           reader = 0;
           red_ptr++;
           red_ptr %= samp_siz;
