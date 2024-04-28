@@ -11,6 +11,8 @@
 - Many wires
 - Nail clip
 - Black tape
+### Pulse Oximeter Schematic
+![Pulse Oximeter Schematic](PulseOxSchem.png)
 
 ## Code Architecture
 
