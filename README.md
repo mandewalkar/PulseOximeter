@@ -15,7 +15,7 @@
 ![Pulse Oximeter Schematic](PulseOxSchem.png)
 
 ### Pulse Oximeter Picture
-![Pulse Oximeter Schematic](PulseOxPic.png)
+![Pulse Oximeter Pic](PulseOxPic.png)
 
 ## Code Architecture
 
