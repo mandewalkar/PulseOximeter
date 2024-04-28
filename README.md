@@ -24,7 +24,7 @@
 ## Code Architecture
 
 ### Pulse Oximeter Block Diagram
-![Pulse Oximeter Block Diagram](PulseOxBlock.png)
+![Pulse Oximeter Block Diagram](PulseOxBlock.jpg)
 
 ### PWM
 The Red and IR emitter LED flash on a 50% duty cycle such that when the Red LED is ON, the IR LED is OFF and vice versa. Timer A1 was utilized for the PWM with a clock speed of 32 kHz, and the LEDs were flashing every 3ms. The In order to accurately collect the sensor data from the photodiode, the readings were measured on the rising edge of the PWM signals so that values measured would indeed correspond to their respective LED. A Port 2 interrupt was utilized to send a flag that the next piece of data could start being collected as well as change the edge trigger of the interrupt (since it was being done of a single PWM signal where the negative edge of one signal is the positive edge of the other).
