@@ -13,8 +13,11 @@
 
 ## Code Architecture
 
+
+
 ### PWM
 
+The Red and IR emitter flash on a 50% duty cycle with inverse relationships
 
 ### Analog to Digital Conversion
 Pin 1.1 on the MSP was used to do the analog to digital conversion. The 
