@@ -8,6 +8,9 @@
 
 - MSP430G2553 Luanchpad
 - 2 4.7k ohm resistors
+- IR emitter diode
+- Red LED
+- Photo Diode (light wavelength range from 400 to 1100 Hz)
 - 1 100k ohm resistors
 - 1 breadboard
 - 2 BC547 BJTs
