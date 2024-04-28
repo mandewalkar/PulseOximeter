@@ -13,4 +13,8 @@
 
 ## Code Architecture
 
+### Analog to Digital Conversion
+
+
+
 
