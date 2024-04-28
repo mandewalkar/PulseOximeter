@@ -13,8 +13,15 @@
 
 ## Code Architecture
 
+### PWM
+
+
 ### Analog to Digital Conversion
+Pin 1.1 on the MSP was used to do the analog to digital conversion. The 
+
+### Calculations
 
 
+### Display
 
 
