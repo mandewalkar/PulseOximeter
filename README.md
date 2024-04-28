@@ -1,5 +1,8 @@
 # ELEC 327: MSP430G2253 Pulse Oximeter with LCD Display
 
+## Pitch/Presentation
+
+[Youtube Link](https://www.youtube.com)
 
 ## Materials and Schematics
 
@@ -11,6 +14,7 @@
 - Many wires
 - Nail clip
 - Black tape
+  
 ### Pulse Oximeter Schematic
 ![Pulse Oximeter Schematic](PulseOxSchem.png)
 
