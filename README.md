@@ -14,6 +14,9 @@
 ### Pulse Oximeter Schematic
 ![Pulse Oximeter Schematic](PulseOxSchem.png)
 
+### Pulse Oximeter Picture
+![Pulse Oximeter Schematic](PulseOxPic.png)
+
 ## Code Architecture
 
 ### PWM
