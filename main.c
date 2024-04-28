@@ -8,10 +8,11 @@ int i;
 char charmemval[] = "P2.5 Value: ";
 char charmemval2[] = "P2.1 Value: ";
 char charmemval3[] = "SpO2 Value: ";
+char charmemval4[] = "R Value: ";
 char charreturn[] = "\r\n";
 char mv_char[5];
-double SpO2 = 0;
-double R=0;
+float SpO2 = 0;
+float R=0;
 void ser_output(char *str);
 void itoa(int n, char s[]);
 void reverse(char s[]);
@@ -31,7 +32,7 @@ int T = 20;    // slot milliseconds to read a value from the sensor
 int avBPM;
 
 int p25_edge_flag = 0;
-int n;
+int n3;
 int n2;
 
 int reading_flag = 0; // 0 is RED LED; 1 is IR LED
@@ -66,7 +67,7 @@ int main(void)
           WDTCTL = WDT_ADLY_1000;
           IE1 |= WDTIE;
       //  ADC10CTL0 = ADC10SHT_2 + ADC10ON + ADC10IE; // ADC10ON, interrupt enabled
-        ADC10CTL0 = SREF_0 | ADC10SHT_2|ADC10ON|ENC;
+        ADC10CTL0 = SREF_2 | ADC10SHT_2|ADC10ON|ENC;
           ADC10CTL1 = INCH_3|SHS_0|ADC10DIV_0|ADC10SSEL_0|CONSEQ_0;;                       // input A1
           ADC10AE0 |= BIT3;                         // PA.1 ADC option select
 
@@ -87,9 +88,9 @@ int main(void)
 
       TA1CTL = TASSEL_1 + MC_1; //ACLK, upmode
 
-      TA1CCR0 = 1000;
-      TA1CCR1 = 500;
-      TA1CCR2 = 500;
+      TA1CCR0 = 100;
+      TA1CCR1 = 50;
+      TA1CCR2 = 50;
 
       TA1CCTL2 = OUTMOD_3; //PWM Set/Reset
       TA1CCTL1 = OUTMOD_7; //PWM Reset/Set for "inverse" phase between Red and IR LEDs
@@ -108,8 +109,8 @@ int main(void)
         int period, samples;
         period=0; samples=0;
         int samplesCounter = 0;
-        float readsIRMM[maxperiod_siz];
-        float readsREDMM[maxperiod_siz];
+        int readsIRMM[maxperiod_siz];
+        int readsREDMM[maxperiod_siz];
         int ptrMM = 0;
         int i;
         for (i = 0; i < maxperiod_siz; i++) {
@@ -138,7 +139,7 @@ int main(void)
         ir_ptr = 0;
         red_ptr = 0;
         cycle_count = 0;
-        n = 0;
+        n3 = 0;
         n2 = 0;
         reader = 0;
   while(1)
@@ -171,7 +172,11 @@ int main(void)
 
           if (n2 >= 10){
                 reader /= n2; //average over last 5
+               // readsIR[ir_ptr] = reader;
+                sumIR -= readsIR[ir_ptr];
+                sumIR += reader;
                 readsIR[ir_ptr] = reader;
+                lastIR = sumIR / samp_siz;
                 reading_flag = 1;
                 P2IES &= ~(BIT3); // low to high transition
                 P2IFG &=  ~(BIT3); // clear any pending interrupts
@@ -198,15 +203,19 @@ int main(void)
 //          ser_output(charmemval2);
 //          ser_output(mv_char);
 //          ser_output(charreturn);
-          n++; //one more sample collected
-      if (n >= 10){
-          reader /= n; //average over last 20
+          n3++; //one more sample collected
+      if (n3 >= 10){
+          reader /= n3; //average over last 20
+          //readsRED[red_ptr] = reader;
+          sumRED -= readsRED[red_ptr];
+          sumRED += reader;
           readsRED[red_ptr] = reader;
+          lastRED = sumRED / samp_siz;
           //P2IES &= ~(BIT3); // low to high transition
           //P2IFG &=  ~(BIT3); // clear any pending interrupts
           P2IES = (BIT3); // low to high transition
           P2IFG ^=  (BIT3); // clear any pending interrupts
-          n = 0;
+          n3 = 0;
 //          itoa(reader, mv_char); //UART the lastRED (average red) value
 //          ser_output(charmemval2);
 //          ser_output(mv_char);
@@ -224,18 +233,30 @@ int main(void)
       }
     //__bis_SR_register(LPM3_bits + GIE);     // Enter LPM3
       } else if (reading_flag == 2){
-          n = 0;
-            for(i=0;i<samp_siz;i++) {
-              if( readsRED[i]> IRmax) IRmax = readsIR[i];
-              if( readsIR[i]>0 && readsIR[i]< IRmin ) IRmin = readsIR[i];
-              readsIRMM[i] =0;
-              if( readsRED[i]> REDmax) REDmax = readsRED[i];
-              if( readsRED[i]>0 && readsRED[i]< REDmin ) REDmin = readsRED[i];
-              readsRED[i] =0;
+          readsIRMM[ptrMM] = lastIR;
+          readsREDMM[ptrMM] = lastRED;
+          ptrMM++;
+          ptrMM %= maxperiod_siz;
+          //samplesCounter++;
+          //n3 = 0;
+          if(1){
+            //samplesCounter =0;
+            IRmax = 0; IRmin=1023; REDmax = 0; REDmin=1023;
+            for(i=0;i<maxperiod_siz;i++) {
+              if( readsIRMM[i]> IRmax) IRmax = readsIRMM[i];
+              if( readsIRMM[i]>0 && readsIRMM[i]< IRmin ) IRmin = readsIRMM[i];
+              //readsIRMM[i] =0;
+              if( readsREDMM[i]> REDmax) REDmax = readsREDMM[i];
+              if( readsREDMM[i]>0 && readsREDMM[i]< REDmin ) REDmin = readsREDMM[i];
+              //readsREDMM[i] =0;
             }
-            R =  ( (REDmax-REDmin) / REDmin) / ( (IRmax-IRmin) / IRmin ) ;
-
-          SpO2 = -19 * R + 113;
+            R =  ( (REDmax-REDmin) / REDmin) / ( (IRmax-IRmin) / IRmin );
+          }
+          SpO2 = -13 * R + 107;
+          itoa(R, mv_char); //UART the lastIR (average IR) value
+          ser_output(charmemval4);
+          ser_output(mv_char);
+          ser_output(charreturn);
           itoa(SpO2, mv_char); //UART the lastIR (average IR) value
           ser_output(charmemval3);
           ser_output(mv_char);
