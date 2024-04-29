@@ -1,4 +1,5 @@
 #include <msp430.h>
+#include <msp430g2553.h>
 #include <stdbool.h>
 
 
@@ -11,11 +12,30 @@ char charmemval3[] = "SpO2 Value: ";
 char charmemval4[] = "R Value: ";
 char charreturn[] = "\r\n";
 char mv_char[5];
+char sp_char[3];
 float SpO2 = 0;
 float R=0;
 void ser_output(char *str);
 void itoa(int n, char s[]);
 void reverse(char s[]);
+
+// define RS high
+#define DR P1OUT = P1OUT | BIT0
+
+// define RS low
+#define CR P1OUT = P1OUT & (~BIT0)
+
+// define Read signal R/W = 1 for reading
+#define READ P1OUT = P1OUT | BIT1
+
+// define Write signal R/W = 0 for writing
+#define WRITE P1OUT = P1OUT & (~BIT1)
+
+// define Enable high signal
+#define ENABLE_HIGH P1OUT = P1OUT | BIT2
+
+// define Enable Low signal
+#define ENABLE_LOW P1OUT = P1OUT & (~BIT2)
 
 
 
@@ -54,6 +74,12 @@ int main(void)
       P2IE = BIT3; // enable interrupts for these pins
       __enable_interrupt();              // enable all interrupts
 
+//      configure_clocks();
+//      lcd_init();
+//
+//      send_string("SpO2:");
+//      send_command(0xC0); //move cursor to second row
+//      send_string("100%");
 
     //    WDTCTL = WDTPW | WDTHOLD;
       BCSCTL1 = CALBC1_1MHZ;
@@ -80,11 +106,12 @@ int main(void)
       UCA0MCTL = UCBRS_0;
       UCA0CTL1 &= ~UCSWRST;
 
-      P1DIR = BIT4 | BIT5 | BIT6; //for BJT gates
-        //P1SEL = BIT4;
-      //  P1IN |= BIT3;
-        P1OUT &= BIT4 | BIT6;
-        P1OUT &= ~BIT5;
+
+//      P1DIR = BIT4 | BIT5 | BIT6; //for BJT gates
+//        //P1SEL = BIT4;
+//      //  P1IN |= BIT3;
+//        P1OUT &= BIT4 | BIT6;
+//        P1OUT &= ~BIT5;
 
       TA1CTL = TASSEL_1 + MC_1; //ACLK, upmode
 
@@ -121,7 +148,6 @@ int main(void)
         float IRmin=700;
         float REDmax=-1;
         float REDmin=700;
-//
         float measuresR[10];
         int measuresPeriods[10];
         int m = 0;
@@ -142,8 +168,21 @@ int main(void)
         n3 = 0;
         n2 = 0;
         reader = 0;
+
   while(1)
   {
+
+//      configure_clocks();
+//      lcd_init();
+//
+//      send_string("SpO2:");a
+
+//     send_command(0x01); //clear LCD
+//     itoa(SpO2, sp_char);
+//     send_string("SpO2:");
+//     send_command(0xC0); //move cursor to second row
+//     send_string(sp_char);
+//     send_string("%");
       if (reading_flag == 0){ //IR Reading
           //P1OUT ^= (BIT2 | BIT3 | BIT6);   ~00?000000 & 00100000       001000000 & 11011111
           while((p25_edge_flag == 0)); //red LED is off, IR on
@@ -261,6 +300,15 @@ int main(void)
           ser_output(charmemval3);
           ser_output(mv_char);
           ser_output(charreturn);
+
+//       if(SpO2 <= 100){
+//       itoa(SpO2, sp_char);
+//       send_string("SpO2:");
+//       send_command(0xC0); //move cursor to second row
+//       send_string(sp_char);
+//       send_string("%");
+//       }
+
        reading_flag = 0;
       }
   }
