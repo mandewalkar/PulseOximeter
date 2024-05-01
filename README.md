@@ -2,7 +2,7 @@
 
 ## Pitch/Presentation
 
-[Youtube Link]([https://www.youtube.com](https://youtu.be/LEoGDcVfMGc))
+[Youtube Link](https://youtu.be/LEoGDcVfMGc)
 
 ## Materials and Schematics
 
