@@ -5,7 +5,9 @@
 
 
 
-int i;
+int i; // var used as index in for loops
+
+// variables for printing values through UART/Serial
 char charmemval[] = "P2.5 Value: ";
 char charmemval2[] = "P2.1 Value: ";
 char charmemval3[] = "SpO2 Value: ";
@@ -21,43 +23,18 @@ void itoa(int n, char s[]);
 void ftoa(float n, char* buffer, int afterpoint);
 void reverse(char s[]);
 
-// define RS high
-#define DR P1OUT = P1OUT | BIT0
-
-// define RS low
-#define CR P1OUT = P1OUT & (~BIT0)
-
-// define Read signal R/W = 1 for reading
-#define READ P1OUT = P1OUT | BIT1
-
-// define Write signal R/W = 0 for writing
-#define WRITE P1OUT = P1OUT & (~BIT1)
-
-// define Enable high signal
-#define ENABLE_HIGH P1OUT = P1OUT | BIT2
-
-// define Enable Low signal
-#define ENABLE_LOW P1OUT = P1OUT & (~BIT2)
-
 
 
 #define maxperiod_siz 20 // max number of samples in a period
 #define measures 10      // number of periods stored
 #define samp_siz 5       // number of (averaged) samples for average
-#define rise_threshold 3 // number of rising measures to determine a peak
 
-// a liquid crystal displays BPM
-//LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
-int T = 20;    // slot milliseconds to read a value from the sensor
+int p25_edge_flag = 0; // flag that lets the code know if the PWM has gone on a falling or rising edge
+int n3; // for indexing the number of averaged Red LED samples in order to move to next stage of calcs
+int n2; // for indexing the number of averaged Red LED samples in order to move to next stage of calcs
 
-int avBPM;
-
-int p25_edge_flag = 0;
-int n3;
-int n2;
-
-int reading_flag = 0; // 0 is RED LED; 1 is IR LED
+int reading_flag = 0; // 0 is RED LED; 1 is IR LED; 2 is for R calc
 
 
 int main(void)
@@ -76,29 +53,22 @@ int main(void)
       P2IE = BIT3; // enable interrupts for these pins
       __enable_interrupt();              // enable all interrupts
 
-//      configure_clocks();
-//      lcd_init();
-//
-//      send_string("SpO2:");
-//      send_command(0xC0); //move cursor to second row
-//      send_string("100%");
-
-    //    WDTCTL = WDTPW | WDTHOLD;
       BCSCTL1 = CALBC1_1MHZ;
       BCSCTL3 = LFXT1S_2;
       DCOCTL = CALDCO_1MHZ;
-      // Set up WDT interrupt for helpfulness
-    //  WDTCTL = WDT_ADLY_1000;       // WDT interrupt
-    //  IE1 |= WDTIE;               // Enable WDT interrupt
 
-      //WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
-          WDTCTL = WDT_ADLY_1000;
-          IE1 |= WDTIE;
-      //  ADC10CTL0 = ADC10SHT_2 + ADC10ON + ADC10IE; // ADC10ON, interrupt enabled
-        ADC10CTL0 = SREF_0 | ADC10SHT_2|ADC10ON|ENC;
-          ADC10CTL1 = INCH_3|SHS_0|ADC10DIV_0|ADC10SSEL_0|CONSEQ_0;;                       // input A1
-          ADC10AE0 |= BIT3;                         // PA.1 ADC option select
+      // watchdog settings
+      WDTCTL = WDT_ADLY_1000;
+      IE1 |= WDTIE;
 
+
+      // ADC settings
+      ADC10CTL0 = SREF_0 | ADC10SHT_2|ADC10ON|ENC;
+      ADC10CTL1 = INCH_3|SHS_0|ADC10DIV_0|ADC10SSEL_0|CONSEQ_0;;                       // input A3
+      ADC10AE0 |= BIT3;                         // PA.3 ADC option select
+
+
+      // Serial Comm settings
       P1SEL = BIT1|BIT2;
       P1SEL2 = BIT1|BIT2;
 
@@ -109,162 +79,110 @@ int main(void)
       UCA0CTL1 &= ~UCSWRST;
 
 
-//      P1DIR = BIT4 | BIT5 | BIT6; //for BJT gates
-//        //P1SEL = BIT4;
-//      //  P1IN |= BIT3;
-//        P1OUT &= BIT4 | BIT6;
-//        P1OUT &= ~BIT5;
 
+
+      //Timer A1 settings
       TA1CTL = TASSEL_1 + MC_1; //ACLK, upmode
 
-      TA1CCR0 = 100;
-      TA1CCR1 = 50;
-      TA1CCR2 = 50;
+      TA1CCR0 = 100; // experimentally found val for the proper PWM freq
+      TA1CCR1 = 50; // 50 % duty cycle
+      TA1CCR2 = 50; // 50% duty cycle
 
+      // one LED is on while other is off
       TA1CCTL2 = OUTMOD_3; //PWM Set/Reset
       TA1CCTL1 = OUTMOD_7; //PWM Reset/Set for "inverse" phase between Red and IR LEDs
 
-      P2DIR = BIT5 | BIT1;
-      P2SEL = BIT5 | BIT1;
+      // Connections for the RED and IR LEDs
+      P2DIR = BIT5 | BIT1;  // selects as outupts
+      P2SEL = BIT5 | BIT1; // selecting PWM for BJTs
 
-      int temp;
-
-      bool finger_status = true;
-
-        float readsIR[samp_siz], sumIR,lastIR, start;
-        float readsRED[samp_siz], sumRED,lastRED;
+      int temp; // var that will be assigned to the value determmined from ADC
 
 
-        int period, samples;
-        period=0; samples=0;
-        int samplesCounter = 0;
-        int readsIRMM[maxperiod_siz];
-        int readsREDMM[maxperiod_siz];
-        int ptrMM = 0;
-        int i;
-        for (i = 0; i < maxperiod_siz; i++) {
-            readsIRMM[i] = 0;
-            readsREDMM[i]=0;
-        }
-        float IRmax=-1;
-        float IRmin=700;
-        float REDmax=-1;
-        float REDmin=700;
-        float measuresR[10];
-        int measuresPeriods[10];
-        int m = 0;
-        for (i = 0; i < 10; i++) { measuresPeriods[i]=0; measuresR[i]=0; }
+      // variables needed for collecting the average read value for each LED and the R calc
+      float readsIR[samp_siz], sumIR,lastIR, start;
+      float readsRED[samp_siz], sumRED,lastRED;
 
-        int red_ptr, ir_ptr, reader, cycle_count;
 
-        float beforeIR;
+    // used for R calc and updates the arrays
+    int readsIRMM[maxperiod_siz];
+    int readsREDMM[maxperiod_siz];
+    int ptrMM = 0;
+    int i;
+    for (i = 0; i < maxperiod_siz; i++) { // setting init vals to 0
+        readsIRMM[i] = 0;
+        readsREDMM[i]=0;
+    }
 
-        bool rising;
-        int rise_count;
-        long int last_beat;
-        for (i = 0; i < samp_siz; i++) { readsIR[i] = 0; readsRED[i]=0; }
-        sumIR = 0; sumRED=0;
-        ir_ptr = 0;
-        red_ptr = 0;
-        cycle_count = 0;
-        n3 = 0;
-        n2 = 0;
-        reader = 0;
+    // setting init R ratio
+    float IRmax=-1;
+    float IRmin=700;
+    float REDmax=-1;
+    float REDmin=700;
+    int red_ptr, ir_ptr, reader, cycle_count; // pointers needed for keeping track of arrays and data collection
 
-  while(1)
+
+    // setting init vals to 0
+    for (i = 0; i < samp_siz; i++) { readsIR[i] = 0; readsRED[i]=0; }
+    sumIR = 0; sumRED=0;
+    ir_ptr = 0;
+    red_ptr = 0;
+    cycle_count = 0;
+    n3 = 0;
+    n2 = 0;
+    reader = 0;
+
+  while(1) // keeps going forever
   {
 
-//      configure_clocks();
-//      lcd_init();
-//
-//      send_string("SpO2:");a
-
-//     send_command(0x01); //clear LCD
-//     itoa(SpO2, sp_char);
-//     send_string("SpO2:");
-//     send_command(0xC0); //move cursor to second row
-//     send_string(sp_char);
-//     send_string("%");
       if (reading_flag == 0){ //IR Reading
-          //P1OUT ^= (BIT2 | BIT3 | BIT6);   ~00?000000 & 00100000       001000000 & 11011111
           while((p25_edge_flag == 0)); //red LED is off, IR on
-          p25_edge_flag = 0;
-          ADC10CTL0 |= ADC10SC;
+          p25_edge_flag = 0; // sets flag off after it was high so it can be used again
+          ADC10CTL0 |= ADC10SC; //start conversion
           while(ADC10CTL1 & ADC10BUSY); //wait until conversion completed
           ADC10CTL0 |= ENC + ADC10SC;             // Sampling and conversion start
-          temp = ADC10MEM;
-          reader += temp;
-//          itoa(temp, mv_char); //UART the lastRED (average red) value
-//          ser_output(charmemval);
-//          ser_output(mv_char);
-//          ser_output(charreturn);
+          temp = ADC10MEM; // assigns temp to the ADC val measured
+          reader += temp; // adds it to reader for accumulating and the averaging
           n2++; //one more sample collected
 
-          //reader /= n;  // we got an average
-          // Add the newest measurement to an array
-          // and subtract the oldest measurement from the array
-          // to maintain a sum of last measurements
-          /*
-          sumIR -= readsIR[ptr];
-          sumIR += reader;
-          readsIR[ptr] = reader;
-          lastIR = sumIR / samp_siz;
-          */
-
-          if (n2 >= 10){
-                reader /= n2; //average over last 5
-               // readsIR[ir_ptr] = reader;
-                sumIR -= readsIR[ir_ptr];
-                sumIR += reader;
-                readsIR[ir_ptr] = reader;
-                lastIR = sumIR / samp_siz;
-                reading_flag = 1;
+          if (n2 >= 10){ // collecting IR readings for ten samples
+                reader /= n2; //average over last 10
+                sumIR -= readsIR[ir_ptr]; // taking away longest ago val
+                sumIR += reader; // adding newest val
+                readsIR[ir_ptr] = reader; //updating readings
+                lastIR = sumIR / samp_siz; //averaging
+                reading_flag = 1; // changes to read the Red LED
                 P2IES &= ~(BIT3); // low to high transition
                 P2IFG &=  ~(BIT3); // clear any pending interrupts
-                p25_edge_flag = 0;
-                n2 = 0;
-//                itoa(reader, mv_char); //UART the lastIR (average IR) value
-//                ser_output(charmemval);
-//                ser_output(mv_char);
-//                ser_output(charreturn);
-                reader = 0;
-                ir_ptr++;
-                ir_ptr %= samp_siz;
+                p25_edge_flag = 0; // clears for future reading
+                n2 = 0; // will start from scratch next time in this state
+                reader = 0; // done reading IR
+                ir_ptr++; // will subtract from longest ago val next time
+                ir_ptr %= samp_siz; // for wrap around of array
           }
 
-      } else if (reading_flag == 1){
-          while((p25_edge_flag == 0)); //red LED is off, IR on
-          p25_edge_flag = 0;
-          ADC10CTL0 |= ADC10SC;
-          while(ADC10CTL1 & ADC10BUSY);
+      } else if (reading_flag == 1){ // Red Reading
+          while((p25_edge_flag == 0)); //red LED is on, IR off
+          p25_edge_flag = 0; // sets flag off after it was high so it can be used again
+          ADC10CTL0 |= ADC10SC; //start conversion
+          while(ADC10CTL1 & ADC10BUSY); //wait until conversion completed
           ADC10CTL0 |= ENC + ADC10SC;             // Sampling and conversion start
-          temp = ADC10MEM;
-          reader += temp;
-//          itoa(temp, mv_char); //UART the lastRED (average red) value
-//          ser_output(charmemval2);
-//          ser_output(mv_char);
-//          ser_output(charreturn);
+          temp = ADC10MEM; // assigns temp to the ADC val measured
+          reader += temp; // adds it to reader for accumulating and the averaging
           n3++; //one more sample collected
       if (n3 >= 10){
-          reader /= n3; //average over last 20
-          //readsRED[red_ptr] = reader;
-          sumRED -= readsRED[red_ptr];
-          sumRED += reader;
-          readsRED[red_ptr] = reader;
+          reader /= n3; //average over last 10
+          sumRED -= readsRED[red_ptr]; // taking away longest ago val
+          sumRED += reader; // adding newest val
+          readsRED[red_ptr] = reader; //updating readings
           lastRED = sumRED / samp_siz;
-          //P2IES &= ~(BIT3); // low to high transition
-          //P2IFG &=  ~(BIT3); // clear any pending interrupts
           P2IES = (BIT3); // low to high transition
           P2IFG ^=  (BIT3); // clear any pending interrupts
-          n3 = 0;
-//          itoa(reader, mv_char); //UART the lastRED (average red) value
-//          ser_output(charmemval2);
-//          ser_output(mv_char);
-//          ser_output(charreturn);
-          reader = 0;
-          red_ptr++;
-          red_ptr %= samp_siz;
-          cycle_count++;
+          n3 = 0; // will start from scratch next time in this state
+          reader = 0; // done reading IR
+          red_ptr++; // will subtract from longest ago val next time
+          red_ptr %= samp_siz; // for wrap around of array
+          cycle_count++; // checks how many time went through IR and Red collection process
           if (cycle_count == 5){
                reading_flag = 2; //switched to calculations
                cycle_count = 0;
@@ -272,55 +190,41 @@ int main(void)
                reading_flag = 0; //switch back to IR reads
           }
       }
-    //__bis_SR_register(LPM3_bits + GIE);     // Enter LPM3
-      } else if (reading_flag == 2){
-          readsIRMM[ptrMM] = lastIR;
-          readsREDMM[ptrMM] = lastRED;
+      } else if (reading_flag == 2){ // calculations
+          readsIRMM[ptrMM] = lastIR; // assigns newest reading
+          readsREDMM[ptrMM] = lastRED; // assigns newest reading
           ptrMM++;
-          ptrMM %= maxperiod_siz - 1;
-          //samplesCounter++;
-          //n3 = 0;
-          if(1){
-            //samplesCounter =0;
+          ptrMM %= maxperiod_siz - 1; // for indexing purposes
+          if(1){ // comparison and assigning max and mins for R (looking within arrays)
             IRmax = 0; IRmin=1023; REDmax = 0; REDmin=1023;
             for(i=0;i<maxperiod_siz;i++) {
               if( readsIRMM[i]> IRmax) IRmax = readsIRMM[i];
               if( readsIRMM[i]>0 && readsIRMM[i]< IRmin ) IRmin = readsIRMM[i];
-              //readsIRMM[i] =0;
               if( readsREDMM[i]> REDmax) REDmax = readsREDMM[i];
               if( readsREDMM[i]>0 && readsREDMM[i]< REDmin ) REDmin = readsREDMM[i];
-              //readsREDMM[i] =0;
             }
-            R =  ( (REDmax-REDmin) / REDmin) / ( (IRmax-IRmin) / IRmin );
+            R =  ( (REDmax-REDmin) / REDmin) / ( (IRmax-IRmin) / IRmin ); // max min caluclation
           }
-          int status;
-          if (R >= 1.2 || R <= 0.4){
+          int status; // determines if reading is nonsensical
+          if (R >= 1.2 || R <= 0.4){ // of outside .4 to 1.2, we have experimentally determined that the reading is with a finger off or bad
               status = 0;
           } else {
               status = 1;
           }
-          SpO2 = -10 * R + 104;
+
+          // printing values through serial
+          SpO2 = -10 * R + 104; // calibrated IR sensor slope and intercept
           ftoa(R, mv_char, 4); //UART the lastIR (average IR) value
-//          ser_output(charmemval4);
           ser_output(mv_char);
           ser_output(charmemval5);
           ftoa(SpO2, mv_char, 4); //UART the lastIR (average IR) value
-//          ser_output(charmemval3);
           ser_output(mv_char);
           ser_output(charmemval5);
           itoa(status, mv_char);
           ser_output(mv_char);
           ser_output(charreturn);
 
-//       if(SpO2 <= 100){
-//       itoa(SpO2, sp_char);
-//       send_string("SpO2:");
-//       send_command(0xC0); //move cursor to second row
-//       send_string(sp_char);
-//       send_string("%");
-//       }
-
-       reading_flag = 0;
+       reading_flag = 0; // send back to IR reading for new calc round
       }
   }
 }
@@ -443,63 +347,6 @@ void ftoa(float n, char* buffer, int afterpoint) {
 }
 
 
-void initialize(){
-    __enable_interrupt();                     // Enable interrupts.
-      TACCR0 = 30;                              // Delay to allow Ref to settle
-      TACCTL0 |= CCIE;                          // Compare-mode interrupt.
-      TACTL = TASSEL_2 | MC_1;                  // TACLK = SMCLK, Up mode.
-      LPM0;                                     // Wait for delay.
-      TACCTL0 &= ~CCIE;                         // Disable timer Interrupt
-      __disable_interrupt();
-
-      P2REN = BIT3;
-      P2IES = (BIT3); // low to high transition
-      P2IFG &=  ~(BIT3); // clear any pending interrupts
-      P2IE = BIT3; // enable interrupts for these pins
-      __enable_interrupt();              // enable all interrupts
-
-//      configure_clocks();
-//      lcd_init();
-//
-//      send_string("SpO2:");
-//      send_command(0xC0); //move cursor to second row
-//      send_string("100%");
-
-    //    WDTCTL = WDTPW | WDTHOLD;
-      BCSCTL1 = CALBC1_1MHZ;
-      BCSCTL3 = LFXT1S_2;
-      DCOCTL = CALDCO_1MHZ;
-      // Set up WDT interrupt for helpfulness
-    //  WDTCTL = WDT_ADLY_1000;       // WDT interrupt
-    //  IE1 |= WDTIE;               // Enable WDT interrupt
-
-      //WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
-          WDTCTL = WDT_ADLY_1000;
-          IE1 |= WDTIE;
-      //  ADC10CTL0 = ADC10SHT_2 + ADC10ON + ADC10IE; // ADC10ON, interrupt enabled
-        ADC10CTL0 = SREF_2 | ADC10SHT_2|ADC10ON|ENC;
-          ADC10CTL1 = INCH_3|SHS_0|ADC10DIV_0|ADC10SSEL_0|CONSEQ_0;;                       // input A1
-          ADC10AE0 |= BIT3;                         // PA.1 ADC option select
-
-      P1SEL = BIT1|BIT2;
-      P1SEL2 = BIT1|BIT2;
-
-      UCA0CTL1 |= UCSWRST+UCSSEL_2;
-      UCA0BR0 = 52;  //settings for 19200 baud
-      UCA0BR1 = 0;
-      UCA0MCTL = UCBRS_0;
-      UCA0CTL1 &= ~UCSWRST;
-
-
-//      P1DIR = BIT4 | BIT5 | BIT6; //for BJT gates
-//        //P1SEL = BIT4;
-//      //  P1IN |= BIT3;
-//        P1OUT &= BIT4 | BIT6;
-//        P1OUT &= ~BIT5;
-
-      P2DIR = BIT5 | BIT1;
-      P2SEL = BIT5 | BIT1;
-}
 #if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
 #pragma vector=PORT2_VECTOR
 __interrupt void button(void)
