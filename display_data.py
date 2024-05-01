@@ -18,7 +18,7 @@ for idx, row in orig_df.iterrows(): #add each row in original csv to the column 
     column_data[1].append(float(row[1]))
     column_data[2].append((float(row[2]) * 50) + 50)
 while True:
-        df = pd.read_csv(file_path) # constantly read in the csv for updates
+        df = pd.read_csv("oximeter.csv") # constantly read in the csv for updates
         if df.shape[0] != orig_df.shape[0]: #if there are any new values, update the lists
             for i in range (orig_df.shape[0], df.shape[0]):
                 if df.iloc[i,0] == '32767.////':
