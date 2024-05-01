@@ -40,4 +40,4 @@ The average of the sampled data points would then be used to find the lowest and
 
 ### Display
 Serial connection via Teraterm was used to gather a log of readings from the MSP and then stored in a CSV file. The CSV file was read in realtime to update python code of the new values. The display utilized matplotlib to show a live calculation and plot of SpO2 values over time, print out the current SpO2 val opn the title, and display if the oxygen content was in the process of being calculated (or if there was no finger inserted).
-![Matplotlib Display](finalproject_matplotlib.jpg)
+![Matplotlib Display](finalproject_matplotlib.jpg) 
