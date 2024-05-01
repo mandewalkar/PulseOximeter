@@ -6,7 +6,7 @@
 
 ## Materials and Schematics
 
-- MSP430G2553 Luanchpad
+- MSP430G2553 Launchpad
 - 2 4.7k ohm resistors
 - IR emitter diode
 - Red LED
