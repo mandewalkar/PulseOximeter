@@ -1,4 +1,4 @@
-# ELEC 327: MSP430G2253 Pulse Oximeter with LCD Display
+# ELEC 327: MSP430G2553 Pulse Oximeter with LCD Display
 
 ## Pitch/Presentation
 
