@@ -10,13 +10,15 @@ char charmemval[] = "P2.5 Value: ";
 char charmemval2[] = "P2.1 Value: ";
 char charmemval3[] = "SpO2 Value: ";
 char charmemval4[] = "R Value: ";
+char charmemval5[] = ",";
 char charreturn[] = "\r\n";
-char mv_char[5];
-char sp_char[3];
+char mv_char[8];
+char sp_char[8];
 float SpO2 = 0;
 float R=0;
 void ser_output(char *str);
 void itoa(int n, char s[]);
+void ftoa(float n, char* buffer, int afterpoint);
 void reverse(char s[]);
 
 // define RS high
@@ -93,7 +95,7 @@ int main(void)
           WDTCTL = WDT_ADLY_1000;
           IE1 |= WDTIE;
       //  ADC10CTL0 = ADC10SHT_2 + ADC10ON + ADC10IE; // ADC10ON, interrupt enabled
-        ADC10CTL0 = SREF_2 | ADC10SHT_2|ADC10ON|ENC;
+        ADC10CTL0 = SREF_0 | ADC10SHT_2|ADC10ON|ENC;
           ADC10CTL1 = INCH_3|SHS_0|ADC10DIV_0|ADC10SSEL_0|CONSEQ_0;;                       // input A1
           ADC10AE0 |= BIT3;                         // PA.1 ADC option select
 
@@ -275,7 +277,7 @@ int main(void)
           readsIRMM[ptrMM] = lastIR;
           readsREDMM[ptrMM] = lastRED;
           ptrMM++;
-          ptrMM %= maxperiod_siz;
+          ptrMM %= maxperiod_siz - 1;
           //samplesCounter++;
           //n3 = 0;
           if(1){
@@ -291,13 +293,22 @@ int main(void)
             }
             R =  ( (REDmax-REDmin) / REDmin) / ( (IRmax-IRmin) / IRmin );
           }
-          SpO2 = -13 * R + 107;
-          itoa(R, mv_char); //UART the lastIR (average IR) value
-          ser_output(charmemval4);
+          int status;
+          if (R >= 1.2 || R <= 0.4){
+              status = 0;
+          } else {
+              status = 1;
+          }
+          SpO2 = -10 * R + 104;
+          ftoa(R, mv_char, 4); //UART the lastIR (average IR) value
+//          ser_output(charmemval4);
           ser_output(mv_char);
-          ser_output(charreturn);
-          itoa(SpO2, mv_char); //UART the lastIR (average IR) value
-          ser_output(charmemval3);
+          ser_output(charmemval5);
+          ftoa(SpO2, mv_char, 4); //UART the lastIR (average IR) value
+//          ser_output(charmemval3);
+          ser_output(mv_char);
+          ser_output(charmemval5);
+          itoa(status, mv_char);
           ser_output(mv_char);
           ser_output(charreturn);
 
@@ -395,8 +406,100 @@ void reverse(char s[])
     }
 }
 
+void ftoa(float n, char* buffer, int afterpoint) {
+    int ipart = (int)n;  // Extract integer part
+    float fpart = n - (float)ipart; // Extract floating part
+    int i = 0;
+
+    // Handle negative numbers
+    if (n < 0) {
+        buffer[i++] = '-';
+        ipart = -ipart;
+        fpart = -fpart;
+    }
+
+    // Convert integer part to string
+    itoa(ipart, buffer + i);
+
+    // Find length of integer part
+    while (buffer[i] != '\0') {
+        i++;
+    }
+
+    // Add decimal point
+    buffer[i++] = '.';
+
+    // Extract digits from the floating part one by one
+    int j;
+    for (j = 0; j < afterpoint; j++) {
+        fpart *= 10;
+        int digit = (int)fpart;
+        buffer[i++] = digit + '0';
+        fpart -= digit;
+    }
+
+    // Null terminate the string
+    buffer[i] = '\0';
+}
 
 
+void initialize(){
+    __enable_interrupt();                     // Enable interrupts.
+      TACCR0 = 30;                              // Delay to allow Ref to settle
+      TACCTL0 |= CCIE;                          // Compare-mode interrupt.
+      TACTL = TASSEL_2 | MC_1;                  // TACLK = SMCLK, Up mode.
+      LPM0;                                     // Wait for delay.
+      TACCTL0 &= ~CCIE;                         // Disable timer Interrupt
+      __disable_interrupt();
+
+      P2REN = BIT3;
+      P2IES = (BIT3); // low to high transition
+      P2IFG &=  ~(BIT3); // clear any pending interrupts
+      P2IE = BIT3; // enable interrupts for these pins
+      __enable_interrupt();              // enable all interrupts
+
+//      configure_clocks();
+//      lcd_init();
+//
+//      send_string("SpO2:");
+//      send_command(0xC0); //move cursor to second row
+//      send_string("100%");
+
+    //    WDTCTL = WDTPW | WDTHOLD;
+      BCSCTL1 = CALBC1_1MHZ;
+      BCSCTL3 = LFXT1S_2;
+      DCOCTL = CALDCO_1MHZ;
+      // Set up WDT interrupt for helpfulness
+    //  WDTCTL = WDT_ADLY_1000;       // WDT interrupt
+    //  IE1 |= WDTIE;               // Enable WDT interrupt
+
+      //WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
+          WDTCTL = WDT_ADLY_1000;
+          IE1 |= WDTIE;
+      //  ADC10CTL0 = ADC10SHT_2 + ADC10ON + ADC10IE; // ADC10ON, interrupt enabled
+        ADC10CTL0 = SREF_2 | ADC10SHT_2|ADC10ON|ENC;
+          ADC10CTL1 = INCH_3|SHS_0|ADC10DIV_0|ADC10SSEL_0|CONSEQ_0;;                       // input A1
+          ADC10AE0 |= BIT3;                         // PA.1 ADC option select
+
+      P1SEL = BIT1|BIT2;
+      P1SEL2 = BIT1|BIT2;
+
+      UCA0CTL1 |= UCSWRST+UCSSEL_2;
+      UCA0BR0 = 52;  //settings for 19200 baud
+      UCA0BR1 = 0;
+      UCA0MCTL = UCBRS_0;
+      UCA0CTL1 &= ~UCSWRST;
+
+
+//      P1DIR = BIT4 | BIT5 | BIT6; //for BJT gates
+//        //P1SEL = BIT4;
+//      //  P1IN |= BIT3;
+//        P1OUT &= BIT4 | BIT6;
+//        P1OUT &= ~BIT5;
+
+      P2DIR = BIT5 | BIT1;
+      P2SEL = BIT5 | BIT1;
+}
 #if defined(__TI_COMPILER_VERSION__) || defined(__IAR_SYSTEMS_ICC__)
 #pragma vector=PORT2_VECTOR
 __interrupt void button(void)
@@ -412,4 +515,3 @@ void __attribute__ ((interrupt(PORT2_VECTOR))) button (void)
     }
     __bic_SR_register_on_exit(LPM3_bits); // exit LPM3 when returning to program (clear LPM3 bits)
 }
-
